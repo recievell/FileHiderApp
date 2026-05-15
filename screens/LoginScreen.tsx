@@ -1,0 +1,273 @@
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import React, { useMemo, useState } from 'react';
+import { Alert, Button, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { authAPI, setToken } from '../services/api';
+
+type Props = NativeStackScreenProps<any, 'Login'>;
+
+export default function LoginScreen({ navigation }: Props) {
+  const [pin, setPin] = useState('');
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [resetMode, setResetMode] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const digits = useMemo(() => {
+    const values = pin.split('');
+    while (values.length < 6) values.push('');
+    return values;
+  }, [pin]);
+
+  const handleContinue = async () => {
+    if (pin.length !== 6) {
+      setError('PIN must be exactly 6 digits.');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await authAPI.verifyPin(pin);
+      await setToken(response.token);
+      navigation.navigate('Home');
+    } catch (error: any) {
+      if (error.message === 'PIN not configured' || error.message === 'PIN already configured') {
+        try {
+          const response = await authAPI.setupPin(pin);
+          await setToken(response.token);
+          Alert.alert('Welcome', 'PIN configured successfully. Use this PIN to unlock the app next time.');
+          navigation.navigate('Home');
+        } catch (setupError: any) {
+          setError(setupError.message || 'Unable to configure PIN.');
+        }
+      } else {
+        setError(error.message || 'Unable to verify PIN.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPin = async () => {
+    if (currentPin.length !== 6 || newPin.length !== 6) {
+      setError('Both current and new PIN must be exactly 6 digits.');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+
+    try {
+      await authAPI.resetPin(currentPin, newPin);
+      Alert.alert('Success', 'Your PIN has been reset. Please sign in with your new PIN.');
+      setResetMode(false);
+      setCurrentPin('');
+      setNewPin('');
+      setPin('');
+    } catch (error: any) {
+      setError(error.message || 'Unable to reset PIN.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.card}>
+        <Text style={styles.brand}>PrivacyHider</Text>
+        <Text style={styles.subtitle}>
+          {resetMode
+            ? 'Enter your current PIN and a new 6-digit PIN.'
+            : 'Enter your 6-digit security PIN to continue.'}
+        </Text>
+
+        {resetMode ? (
+          <>
+            <TextInput
+              value={currentPin}
+              onChangeText={(value) => {
+                const numeric = value.replace(/[^0-9]/g, '');
+                setCurrentPin(numeric.slice(0, 6));
+                if (error) setError('');
+              }}
+              keyboardType="number-pad"
+              maxLength={6}
+              style={styles.textInput}
+              placeholder="Current PIN"
+              placeholderTextColor="#64748b"
+            />
+            <TextInput
+              value={newPin}
+              onChangeText={(value) => {
+                const numeric = value.replace(/[^0-9]/g, '');
+                setNewPin(numeric.slice(0, 6));
+                if (error) setError('');
+              }}
+              keyboardType="number-pad"
+              maxLength={6}
+              style={styles.textInput}
+              placeholder="New PIN"
+              placeholderTextColor="#64748b"
+            />
+          </>
+        ) : (
+          <>
+            <View style={styles.pinRow}>
+              {digits.map((digit, index) => (
+                <View key={index} style={styles.pinCell}>
+                  <Text style={styles.pinCellText}>{digit ? '•' : ''}</Text>
+                </View>
+              ))}
+            </View>
+
+            <TextInput
+              value={pin}
+              onChangeText={(value) => {
+                const numeric = value.replace(/[^0-9]/g, '');
+                setPin(numeric.slice(0, 6));
+                if (error) setError('');
+              }}
+              keyboardType="number-pad"
+              maxLength={6}
+              style={styles.hiddenInput}
+              autoFocus
+              textContentType="oneTimeCode"
+            />
+          </>
+        )}
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        <View style={styles.buttonWrapper}>
+          <Button
+            title={loading ? (resetMode ? 'Resetting...' : 'Verifying...') : resetMode ? 'Reset PIN' : 'Continue'}
+            onPress={resetMode ? handleResetPin : handleContinue}
+            disabled={loading || (resetMode ? currentPin.length !== 6 || newPin.length !== 6 : pin.length !== 6)}
+          />
+        </View>
+
+        <TouchableOpacity
+          style={styles.resetButton}
+          onPress={() => {
+            setResetMode(!resetMode);
+            setError('');
+            setPin('');
+            setCurrentPin('');
+            setNewPin('');
+          }}
+        >
+          <Text style={styles.resetButtonText}>{resetMode ? 'Back to login' : 'Reset PIN'}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.adminButton}
+          onPress={() => navigation.navigate('AdminLogin')}
+        >
+          <Text style={styles.adminButtonText}>Admin Login</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+    padding: 20,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#111827',
+    borderRadius: 24,
+    padding: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  brand: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#f8fafc',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  subtitle: {
+    color: '#cbd5e1',
+    fontSize: 16,
+    marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  pinRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  pinCell: {
+    width: 44,
+    height: 58,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#0f172a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pinCellText: {
+    fontSize: 28,
+    color: '#f8fafc',
+  },
+  hiddenInput: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    opacity: 0,
+  },
+  textInput: {
+    width: '100%',
+    height: 54,
+    backgroundColor: '#0f172a',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#334155',
+    color: '#f8fafc',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  buttonWrapper: {
+    marginTop: 18,
+  },
+  resetButton: {
+    marginTop: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  resetButtonText: {
+    color: '#93c5fd',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  errorText: {
+    color: '#f87171',
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  adminButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  adminButtonText: {
+    color: '#64748b',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+});
