@@ -2,29 +2,68 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-const getApiHost = () => {
+const getApiUrl = () => {
+  const apiUrlFromConfig =
+    typeof Constants.expoConfig?.extra?.apiUrl === 'string'
+      ? Constants.expoConfig?.extra?.apiUrl
+      : null;
+
+  if (apiUrlFromConfig) {
+    if (Platform.OS === 'android' && apiUrlFromConfig.startsWith('http://localhost')) {
+      return apiUrlFromConfig.replace('http://localhost', 'http://10.0.2.2');
+    }
+    return apiUrlFromConfig;
+  }
+
+  const apiHostFromConfig =
+    typeof Constants.expoConfig?.extra?.apiHost === 'string'
+      ? Constants.expoConfig?.extra?.apiHost
+      : null;
+
+  if (apiHostFromConfig) {
+    if (Platform.OS === 'android' && apiHostFromConfig === 'localhost') {
+      return 'http://10.0.2.2:3000';
+    }
+    return `http://${apiHostFromConfig}:3000`;
+  }
+
   const debuggerHost =
     typeof Constants.manifest?.debuggerHost === 'string'
       ? Constants.manifest?.debuggerHost
-      : typeof Constants.expoConfig?.extra?.apiHost === 'string'
-      ? Constants.expoConfig?.extra?.apiHost
       : null;
 
   if (debuggerHost) {
     const host = debuggerHost.split(':')[0];
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      return host;
-    }
+    return `http://${host}:3000`;
+  }
+
+  // Try expoConfig.hostUri (available in some Expo/manifests)
+  const hostUri = (Constants as any).expoConfig?.hostUri;
+  if (typeof hostUri === 'string') {
+    const host = hostUri.split(':')[0];
+    return `http://${host}:3000`;
+  }
+
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3000';
   }
 
   if (Platform.OS === 'web') {
-    return 'localhost';
+    return 'http://localhost:3000';
   }
 
-  return '192.168.1.58';
+  return 'http://localhost:3000';
 };
 
-const API_URL = `http://${getApiHost()}:3000`;
+// Helpful debug: log resolved API URL in development
+try {
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.log('Resolved API URL for runtime:', getApiUrl());
+  }
+} catch (e) {}
+
+export const API_URL = getApiUrl();
 
 let token: string | null = null;
 
@@ -98,7 +137,9 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
     }
 
     if (!response.ok) {
-      await handleUnauthorized(response.status);
+      if (needsAuth) {
+        await handleUnauthorized(response.status);
+      }
       throw new Error(data?.message || 'API Error');
     }
 

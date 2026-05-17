@@ -39,7 +39,8 @@ const DOCUMENT_TYPES = [
   'text/plain',
 ];
 
-export default function VaultScreen({ navigation }: Props) {
+export default function VaultScreen({ navigation, route }: Props) {
+  const vaultLabel = route.params?.vaultLabel ?? 'File Manager';
   const [files, setFiles] = useState<VaultFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -196,11 +197,11 @@ export default function VaultScreen({ navigation }: Props) {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left-bold" size={28} color="#ffffff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>File Manager</Text>
-        <View style={{ width: 28 }} />
+<Text style={styles.headerTitle}>{vaultLabel}</Text>
+      <View style={{ width: 28 }} />
       </View>
 
-      <Text style={styles.vaultName}>File Manager</Text>
+      <Text style={styles.vaultName}>{vaultLabel}</Text>
       <Text style={styles.vaultDescription}>Manage your uploaded files below.</Text>
 
       <View style={styles.buttonRow}>

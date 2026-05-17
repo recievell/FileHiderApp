@@ -18,12 +18,9 @@ type Props = NativeStackScreenProps<any, 'AdminDashboard'>;
 interface User {
   userid: string;
   username: string;
-  email: string;
-  sex: string;
   created_at: string;
-  vaultCount: number;
+  fileCount: number;
   storageUsed: string;
-  lastActivity: string;
 }
 
 export default function AdminDashboardScreen({ navigation }: Props) {
@@ -39,10 +36,25 @@ export default function AdminDashboardScreen({ navigation }: Props) {
   const loadUsers = async () => {
     try {
       const data = await adminAPI.getUsers();
-      setUsers(data.users);
+      const fetchedUsers: User[] = Array.isArray(data)
+        ? data
+        : data?.users ?? [];
+      const totalUsersValue =
+        typeof data?.totalUsers === 'number'
+          ? data.totalUsers
+          : fetchedUsers.length;
+      const totalStorageValue =
+        typeof data?.totalStorage === 'string'
+          ? data.totalStorage
+          : `${fetchedUsers.reduce<number>((sum, user) => {
+              const storage = parseFloat(user.storageUsed) || 0;
+              return sum + storage;
+            }, 0).toFixed(1)} MB`;
+
+      setUsers(fetchedUsers);
       setStats({
-        totalUsers: data.totalUsers,
-        totalStorage: data.totalStorage,
+        totalUsers: totalUsersValue,
+        totalStorage: totalStorageValue,
       });
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to load users');
@@ -89,22 +101,21 @@ export default function AdminDashboardScreen({ navigation }: Props) {
           <Text style={styles.username}>{item.username}</Text>
           <View style={styles.userStats}>
             <View style={styles.stat}>
-              <MaterialCommunityIcons name="shield-lock-outline" size={14} color="#4f97f7" />
-              <Text style={styles.statText}>{item.vaultCount} vaults</Text>
+              <MaterialCommunityIcons name="file-document-outline" size={14} color="#4f97f7" />
+              <Text style={styles.statText}>{item.fileCount} files</Text>
             </View>
             <View style={styles.stat}>
               <MaterialCommunityIcons name="database" size={14} color="#4f97f7" />
               <Text style={styles.statText}>{item.storageUsed}</Text>
             </View>
-          </View>
+          </View> 
         </View>
 
-        <Text style={styles.email}>{item.email}</Text>
         <Text style={styles.details}>
-          Gender: {item.sex} • Joined: {new Date(item.created_at).toLocaleDateString()}
+          Joined: {new Date(item.created_at).toLocaleDateString()}
         </Text>
         <Text style={styles.details}>
-          Last Activity: {new Date(item.lastActivity).toLocaleDateString()}
+          Files: {item.fileCount}
         </Text>
       </View>
 

@@ -1,9 +1,11 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
 import { Alert, Button, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { authAPI, setToken } from '../services/api';
+import { authAPI, API_URL, setToken } from '../services/api';
 
 type Props = NativeStackScreenProps<any, 'Login'>;
+
+const PIN_LENGTH = 6;
 
 export default function LoginScreen({ navigation }: Props) {
   const [pin, setPin] = useState('');
@@ -15,15 +17,26 @@ export default function LoginScreen({ navigation }: Props) {
 
   const digits = useMemo(() => {
     const values = pin.split('');
-    while (values.length < 6) values.push('');
+    while (values.length < PIN_LENGTH) values.push('');
     return values;
   }, [pin]);
 
-  const handleContinue = async () => {
-    if (pin.length !== 6) {
-      setError('PIN must be exactly 6 digits.');
-      return;
+  const handleNumericInput = (value: string, setter: (v: string) => void) => {
+    const numeric = value.replace(/[^0-9]/g, '').slice(0, PIN_LENGTH);
+    setter(numeric);
+    if (error) setError('');
+  };
+
+  const validatePin = (pinToCheck: string) => {
+    if (pinToCheck.length !== PIN_LENGTH) {
+     setError(`PIN must be exactly ${PIN_LENGTH} digits.`);
+      return false;
     }
+    return true;
+  };
+
+  const handleContinue = async () => {
+    if (!validatePin(pin)) return;
 
     setError('');
     setLoading(true);
@@ -31,17 +44,19 @@ export default function LoginScreen({ navigation }: Props) {
     try {
       const response = await authAPI.verifyPin(pin);
       await setToken(response.token);
-      navigation.navigate('Home');
+      navigation.navigate('VaultGrid');
     } catch (error: any) {
       if (error.message === 'PIN not configured' || error.message === 'PIN already configured') {
         try {
           const response = await authAPI.setupPin(pin);
           await setToken(response.token);
           Alert.alert('Welcome', 'PIN configured successfully. Use this PIN to unlock the app next time.');
-          navigation.navigate('Home');
+          navigation.navigate('VaultGrid');
         } catch (setupError: any) {
           setError(setupError.message || 'Unable to configure PIN.');
         }
+      } else if (error.message === 'Network request failed') {
+        setError(`Network error: unable to reach backend at ${API_URL}. Make sure the server is running and the device can access it.`);
       } else {
         setError(error.message || 'Unable to verify PIN.');
       }
@@ -51,7 +66,7 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   const handleResetPin = async () => {
-    if (currentPin.length !== 6 || newPin.length !== 6) {
+    if (!validatePin(currentPin) || !validatePin(newPin)) {
       setError('Both current and new PIN must be exactly 6 digits.');
       return;
     }
@@ -73,6 +88,16 @@ export default function LoginScreen({ navigation }: Props) {
     }
   };
 
+  const toggleResetMode = () => {
+    setResetMode(!resetMode);
+    setError('');
+    setPin('');
+    setCurrentPin('');
+    setNewPin('');
+  };
+
+  const isContinueDisabled = loading || (resetMode ? currentPin.length !== PIN_LENGTH || newPin.length !== PIN_LENGTH : pin.length !== PIN_LENGTH);
+
   return (
     <View style={styles.container}>
       <View style={styles.card}>
@@ -87,26 +112,18 @@ export default function LoginScreen({ navigation }: Props) {
           <>
             <TextInput
               value={currentPin}
-              onChangeText={(value) => {
-                const numeric = value.replace(/[^0-9]/g, '');
-                setCurrentPin(numeric.slice(0, 6));
-                if (error) setError('');
-              }}
+              onChangeText={(value) => handleNumericInput(value, setCurrentPin)}
               keyboardType="number-pad"
-              maxLength={6}
+              maxLength={PIN_LENGTH}
               style={styles.textInput}
               placeholder="Current PIN"
               placeholderTextColor="#64748b"
             />
             <TextInput
               value={newPin}
-              onChangeText={(value) => {
-                const numeric = value.replace(/[^0-9]/g, '');
-                setNewPin(numeric.slice(0, 6));
-                if (error) setError('');
-              }}
+              onChangeText={(value) => handleNumericInput(value, setNewPin)}
               keyboardType="number-pad"
-              maxLength={6}
+              maxLength={PIN_LENGTH}
               style={styles.textInput}
               placeholder="New PIN"
               placeholderTextColor="#64748b"
@@ -124,13 +141,9 @@ export default function LoginScreen({ navigation }: Props) {
 
             <TextInput
               value={pin}
-              onChangeText={(value) => {
-                const numeric = value.replace(/[^0-9]/g, '');
-                setPin(numeric.slice(0, 6));
-                if (error) setError('');
-              }}
+              onChangeText={(value) => handleNumericInput(value, setPin)}
               keyboardType="number-pad"
-              maxLength={6}
+              maxLength={PIN_LENGTH}
               style={styles.hiddenInput}
               autoFocus
               textContentType="oneTimeCode"
@@ -144,27 +157,15 @@ export default function LoginScreen({ navigation }: Props) {
           <Button
             title={loading ? (resetMode ? 'Resetting...' : 'Verifying...') : resetMode ? 'Reset PIN' : 'Continue'}
             onPress={resetMode ? handleResetPin : handleContinue}
-            disabled={loading || (resetMode ? currentPin.length !== 6 || newPin.length !== 6 : pin.length !== 6)}
+            disabled={isContinueDisabled}
           />
         </View>
 
-        <TouchableOpacity
-          style={styles.resetButton}
-          onPress={() => {
-            setResetMode(!resetMode);
-            setError('');
-            setPin('');
-            setCurrentPin('');
-            setNewPin('');
-          }}
-        >
+        <TouchableOpacity style={styles.resetButton} onPress={toggleResetMode}>
           <Text style={styles.resetButtonText}>{resetMode ? 'Back to login' : 'Reset PIN'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.adminButton}
-          onPress={() => navigation.navigate('AdminLogin')}
-        >
+        <TouchableOpacity style={styles.adminButton} onPress={() => navigation.navigate('AdminLogin')}>
           <Text style={styles.adminButtonText}>Admin Login</Text>
         </TouchableOpacity>
       </View>

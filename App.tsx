@@ -3,9 +3,10 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from './screens/LoginScreen';
-import AdminLoginScreen from './screens/AdminLoginScreen';
+import AdminLogin from './screens/AdminLogin';
 import AdminDashboardScreen from './screens/AdminDashboardScreen';
 import HomeScreen from './screens/HomeScreen';
+import PinPadScreen from './screens/PinPadScreen';
 import VaultScreen from './screens/VaultScreen';
 import { initializeAuthToken } from './services/api';
 
@@ -30,9 +31,11 @@ export default function App() {
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
+        <Stack.Screen name="AdminLogin" component={AdminLogin} />
         <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="VaultGrid" component={HomeScreen} />
+        <Stack.Screen name="PinPad" component={PinPadScreen} />
+        <Stack.Screen name="Vault" component={VaultScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
